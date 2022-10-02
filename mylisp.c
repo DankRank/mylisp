@@ -392,6 +392,11 @@ void *subr_deflist(void *args, void *a)
 	}
 	return CAR(args); // FIXME: this should return list of atoms?
 }
+void *subr_get(void *args, void *a)
+{
+	(void)a;
+	return get(CAR(args), CADR(args));
+}
 void *subr_cset(void *args, void *a)
 {
 	(void)a;
@@ -662,7 +667,8 @@ void init_env()
 	// APPLY EVAL EVLIS QUOTE LABEL FUNCTION PROG GO RETURN SET SETQ
 	DECL_SUBR("DEFINE", subr_define);
 	DECL_SUBR("DEFLIST", subr_deflist);
-	// ATTRIB PROP GET
+	// ATTRIB PROP
+	DECL_SUBR("GET", subr_get);
 	DECL_SUBR("CSET", subr_cset);
 	DECL_FSUBR("CSETQ", subr_csetq);
 	// REMPROP FLAG REMFLAG
