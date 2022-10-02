@@ -614,59 +614,61 @@ void init_env()
 	put_internal(atom_t, atom_apval, atom__t_);
 
 	// FIXME: it's a GC bug to put these directly into the subr prop
-	put_internal(get_atom("CAR"), atom_subr, subr_car);
-	put_internal(get_atom("CDR"), atom_subr, subr_cdr);
-	put_internal(get_atom("CONS"), atom_subr, subr_cons);
-	put_internal(get_atom("ATOM"), atom_subr, subr_atom);
-	put_internal(get_atom("EQ"), atom_subr, subr_eq);
-	put_internal(get_atom("EQUAL"), atom_subr, subr_equal);
-	put_internal(get_atom("LIST"), atom_subr, subr_list);
-	put_internal(get_atom("NULL"), atom_subr, subr_null);
-	put_internal(get_atom("RPLACA"), atom_subr, subr_rplaca);
-	put_internal(get_atom("RPLACD"), atom_subr, subr_rplacd);
-	put_internal(get_atom("AND"), atom_fsubr, subr_and);
-	put_internal(get_atom("OR"), atom_fsubr, subr_or);
-	put_internal(get_atom("NOT"), atom_fsubr, subr_null); // intentional
+#define DECL_SUBR(atom, s) put_internal(get_atom(atom), atom_subr, s)
+#define DECL_FSUBR(atom, s) put_internal(get_atom(atom), atom_fsubr, s)
+	DECL_SUBR("CAR", subr_car);
+	DECL_SUBR("CDR", subr_cdr);
+	DECL_SUBR("CONS", subr_cons);
+	DECL_SUBR("ATOM", subr_atom);
+	DECL_SUBR("EQ", subr_eq);
+	DECL_SUBR("EQUAL", subr_equal);
+	DECL_SUBR("LIST", subr_list);
+	DECL_SUBR("NULL", subr_null);
+	DECL_SUBR("RPLACA", subr_rplaca);
+	DECL_SUBR("RPLACD", subr_rplacd);
+	DECL_FSUBR("AND", subr_and);
+	DECL_FSUBR("OR", subr_or);
+	DECL_FSUBR("NOT", subr_null); // intentional
 	// APPLY EVAL EVLIS QUOTE LABEL FUNCTION PROG GO RETURN SET SETQ
-	put_internal(get_atom("DEFINE"), atom_subr, subr_define);
-	put_internal(get_atom("DEFLIST"), atom_subr, subr_deflist);
+	DECL_SUBR("DEFINE", subr_define);
+	DECL_SUBR("DEFLIST", subr_deflist);
 	// ATTRIB PROP GET
-	put_internal(get_atom("CSET"), atom_subr, subr_cset);
-	put_internal(get_atom("CSETQ"), atom_fsubr, subr_csetq);
+	DECL_SUBR("CSET", subr_cset);
+	DECL_FSUBR("CSETQ", subr_csetq);
 	// REMPROP FLAG REMFLAG
 	// PAIR SASSOC SUBST SUBLIS
 	// APPEND CONC NCONC COPY REVERSE MEMBER LENGTH EFFACE
 	// MAPLIST MAPCON MAP SEARCH 
-	put_internal(get_atom("PLUS"), atom_subr, subr_plus);
-	put_internal(get_atom("MINUS"), atom_subr, subr_minus);
-	put_internal(get_atom("DIFFERENCE"), atom_subr, subr_difference);
-	put_internal(get_atom("TIMES"), atom_subr, subr_times);
-	put_internal(get_atom("DIVIDE"), atom_subr, subr_divide);
-	put_internal(get_atom("QUOTIENT"), atom_subr, subr_quotient);
-	put_internal(get_atom("REMAINDER"), atom_subr, subr_remainder);
-	put_internal(get_atom("ADD1"), atom_subr, subr_add1);
-	put_internal(get_atom("SUB1"), atom_subr, subr_sub1);
-	put_internal(get_atom("MIN"), atom_subr, subr_min);
-	put_internal(get_atom("MAX"), atom_subr, subr_max);
-	put_internal(get_atom("RECIP"), atom_subr, subr_recip);
-	put_internal(get_atom("EXPT"), atom_subr, subr_expt);
-	put_internal(get_atom("LESSP"), atom_subr, subr_lessp);
-	put_internal(get_atom("GREATERP"), atom_subr, subr_greaterp);
-	put_internal(get_atom("ZEROP"), atom_subr, subr_zerop);
-	put_internal(get_atom("ONEP"), atom_subr, subr_onep);
-	put_internal(get_atom("MINUSP"), atom_subr, subr_minusp);
-	put_internal(get_atom("NUMBERP"), atom_subr, subr_numberp);
-	put_internal(get_atom("FIXP"), atom_subr, subr_numberp); // intentional
-	put_internal(get_atom("FLOATP"), atom_subr, subr_recip); // intentional
-	put_internal(get_atom("LOGOR"), atom_subr, subr_logor);
-	put_internal(get_atom("LOGAND"), atom_subr, subr_logand);
-	put_internal(get_atom("LOGXOR"), atom_subr, subr_logxor);
-	put_internal(get_atom("LEFTSHIFT"), atom_subr, subr_leftshift);
-	put_internal(get_atom("+"), atom_subr, subr_plus);
-	put_internal(get_atom("*"), atom_subr, subr_times);
-	put_internal(get_atom("READ"), atom_subr, subr_read);
-	put_internal(get_atom("PRINT"), atom_subr, subr_print);
-	put_internal(get_atom("RECLAIM"), atom_subr, subr_reclaim);
+	DECL_SUBR("PLUS", subr_plus);
+	DECL_SUBR("MINUS", subr_minus);
+	DECL_SUBR("DIFFERENCE", subr_difference);
+	DECL_SUBR("TIMES", subr_times);
+	DECL_SUBR("DIVIDE", subr_divide);
+	DECL_SUBR("QUOTIENT", subr_quotient);
+	DECL_SUBR("REMAINDER", subr_remainder);
+	DECL_SUBR("ADD1", subr_add1);
+	DECL_SUBR("SUB1", subr_sub1);
+	DECL_SUBR("MIN", subr_min);
+	DECL_SUBR("MAX", subr_max);
+	DECL_SUBR("RECIP", subr_recip);
+	DECL_SUBR("EXPT", subr_expt);
+	DECL_SUBR("LESSP", subr_lessp);
+	DECL_SUBR("GREATERP", subr_greaterp);
+	DECL_SUBR("ZEROP", subr_zerop);
+	DECL_SUBR("ONEP", subr_onep);
+	DECL_SUBR("MINUSP", subr_minusp);
+	DECL_SUBR("NUMBERP", subr_numberp);
+	DECL_SUBR("FIXP", subr_numberp); // intentional
+	DECL_SUBR("FLOATP", subr_recip); // intentional
+	DECL_SUBR("LOGOR", subr_logor);
+	DECL_SUBR("LOGAND", subr_logand);
+	DECL_SUBR("LOGXOR", subr_logxor);
+	DECL_SUBR("LEFTSHIFT", subr_leftshift);
+	DECL_SUBR("+", subr_plus);
+	DECL_SUBR("*", subr_times);
+	DECL_SUBR("READ", subr_read);
+	DECL_SUBR("PRINT", subr_print);
+	DECL_SUBR("RECLAIM", subr_reclaim);
 }
 
 /* read/print */
