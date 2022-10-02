@@ -854,6 +854,11 @@ void *sassoc(void *x, void *y/*, void *u*/)
 		y = CDR(y);
 	}
 	fprintf(stderr, "sassoc failed\n");
+	if (ATOM(x)) {
+		printf("atom in question: ");
+		print(x);
+		printf("\n");
+	}
 	ERROR();
 }
 void *pair(void *x, void *y)
