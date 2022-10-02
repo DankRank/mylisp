@@ -76,6 +76,15 @@ void gc_pop()
 {
 	gc_nroots--;
 }
+/* General rules for GC:
+ * Functions which call cons will generally require rooted
+ * arguments and return dangling values.
+ * For other functions it doesn't matter, since they don't
+ * trigger gc cycle.
+ * Cons itself is an exception to the rule, as it protects
+ * its arguments. You can't do cons(cons(a,b), cons(c,d))
+ * though, for obvious reasons.
+ */
 
 #define MARK(c) ((void*)((intptr_t)(c) | 1))
 #define UNMARK(c) ((void*)((intptr_t)(c) & ~(intptr_t)1))
@@ -140,7 +149,15 @@ void *cons_generic(void **free_list, void *car, void *cdr)
 {
 	void *c = *free_list;
 	if (!c) {
-		gc_collect();
+		if (free_list == &free1_list) {
+			gc_push(car);
+			gc_push(cdr);
+			gc_collect();
+			gc_pop();
+			gc_pop();
+		} else {
+			gc_collect();
+		}
 		c = *free_list;
 		if (!c) {
 			fprintf(stderr, "OUT OF MEMORY\n");
@@ -162,14 +179,12 @@ void *alloc_string(const char *s)
 {
 	int len = strlen(s)/PAIRSIZE*PAIRSIZE;
 	void *c = strncpy(cons2(), &s[len], PAIRSIZE);
-	gc_push(&c);
 	void *ls = cons(c, NULL);
 	gc_push(&ls);
 	while (len != 0) {
 		c = memcpy(cons2(), &s[len -= PAIRSIZE], PAIRSIZE);
 		ls = cons(c, ls);
 	}
-	gc_pop();
 	gc_pop();
 	return ls;
 }
@@ -223,13 +238,8 @@ void *get_atom(const char *str)
 		p = CDR(p);
 	}
 	// no such atom, make one
-	void *c = alloc_string(str);
-	gc_push(&c);
-	c = cons(c, NULL);
-	c = cons(atom_pname, c);
-	c = cons(ATOM_TAG, c);
+	void *c = cons(ATOM_TAG, cons(atom_pname, cons(alloc_string(str), NULL)));
 	atoms_list = cons(c, atoms_list);
-	gc_pop();
 	return c;
 }
 
@@ -558,13 +568,9 @@ void init_env()
 	gc_push(&atoms_list);
 
 	{
-		void *c = alloc_string("PNAME");
-		gc_push(&c);
-		c = cons(c, NULL);
-		c = cons(NULL, c);
+		void *c = cons(NULL, cons(alloc_string("PNAME"), NULL));
 		c = atom_pname = CAR(c) = cons(ATOM_TAG, c);
 		atoms_list = cons(c, atoms_list);
-		gc_pop();
 	}
 
 	atom_expr = get_atom("EXPR");
@@ -770,8 +776,7 @@ void *pair(void *x, void *y)
 	void *m = NULL;
 	gc_push(&m);
 	while (x && y) {
-		m = cons(NULL, m);
-		CAR(m) = cons(CAR(x), CAR(y));
+		m = cons(cons(CAR(x), CAR(y)), m);
 		x = CDR(x);
 		y = CDR(y);
 	}
