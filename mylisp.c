@@ -342,6 +342,27 @@ void *subr_or(void *args, void *a)
 	}
 	return NULL;
 }
+void *subr_begin(void *args, void *a)
+{
+	void *m = args;
+	void *res = NULL;
+	while (m) {
+		res = eval(CAR(m), a);
+		m = CDR(m);
+	}
+	return res;
+}
+void *subr_apply(void *args, void *a)
+{
+	void *apply(void *fn, void *args, void *a);
+	return apply(CAR(args), CADR(args), a);
+}
+void *subr_eval(void *args, void *a)
+{
+	(void)a;
+	void *eval(void *form, void *a);
+	return eval(CAR(args), CADR(args));
+}
 void *subr_define(void *args, void *a)
 {
 	(void)a;
@@ -633,6 +654,9 @@ void init_env()
 	DECL_FSUBR("AND", subr_and);
 	DECL_FSUBR("OR", subr_or);
 	DECL_FSUBR("NOT", subr_null); // intentional
+	DECL_FSUBR("BEGIN", subr_begin); // custom
+	DECL_SUBR("APPLY", subr_apply);
+	DECL_SUBR("EVAL", subr_eval);
 	// APPLY EVAL EVLIS QUOTE LABEL FUNCTION PROG GO RETURN SET SETQ
 	DECL_SUBR("DEFINE", subr_define);
 	DECL_SUBR("DEFLIST", subr_deflist);
