@@ -314,12 +314,14 @@ void *subr_null(void *args, void *a)
 void *subr_rplaca(void *args, void *a)
 {
 	(void)a;
-	return CAAR(args) = CADR(args);
+	CAAR(args) = CADR(args);
+	return CAR(args);
 }
 void *subr_rplacd(void *args, void *a)
 {
 	(void)a;
-	return CDAR(args) = CADR(args);
+	CDAR(args) = CADR(args);
+	return CAR(args);
 }
 void *eval(void *fn, void *a);
 void *subr_and(void *args, void *a)
