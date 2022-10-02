@@ -105,6 +105,8 @@ void gc_mark(void *c)
 		CAR(c) = MARK(cc);
 		if (cc != ATOM_TAG && cc != NUM_TAG)
 			gc_mark(cc);
+		if (cc == NUM_TAG)
+			break;
 		c = CDR(c);
 	}
 }
