@@ -56,3 +56,7 @@
               (MAPLIST (CADR ARGS) 'CAAR)
               (CADDR ARGS)))
           (EVLIS (MAPLIST (CADR ARGS) 'CADAR) A)))
+(DEFUN MEMBER (X LS)
+       (COND ((NULL LS) NIL)
+             ((EQUAL X (CAR LS)) T)
+             (T (MEMBER X (CDR LS)))))
