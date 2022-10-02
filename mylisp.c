@@ -731,6 +731,12 @@ int read(void **slot)
 		CDR(*slot) = cons(NULL, NULL);
 		return read(&CADR(*slot));
 	}
+	if (c == ';') {
+		do {
+			c = getc(current_input);
+		} while (c != EOF && c != '\n');
+		return read(slot);
+	}
 	if (c == '#') {
 		c = getc(current_input);
 		if (c == ';') {
@@ -787,7 +793,7 @@ int read(void **slot)
 	do {
 		*p++ = c;
 		c = getc(current_input);
-	} while (c != ' ' && c != '\t' && c != '\n' && c != '(' && c != ')' && c != '.' && c != EOF);
+	} while (c != ' ' && c != '\t' && c != '\n' && c != '(' && c != ')' && c != '.' && c != ';' && c != EOF);
 	*p++ = '\0';
 	ungetc(c, current_input);
 	if (buf[0] >= '0' && buf[0] <= '9')
