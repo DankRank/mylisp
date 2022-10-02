@@ -365,6 +365,12 @@ void *subr_eval(void *args, void *a)
 	void *eval(void *form, void *a);
 	return eval(CAR(args), CADR(args));
 }
+void *subr_evlis(void *args, void *a)
+{
+	(void)a;
+	void *evlis(void *form, void *a);
+	return evlis(CAR(args), CADR(args));
+}
 void *subr_define(void *args, void *a)
 {
 	(void)a;
@@ -664,7 +670,8 @@ void init_env()
 	DECL_FSUBR("BEGIN", subr_begin); // custom
 	DECL_SUBR("APPLY", subr_apply);
 	DECL_SUBR("EVAL", subr_eval);
-	// APPLY EVAL EVLIS QUOTE LABEL FUNCTION PROG GO RETURN SET SETQ
+	DECL_SUBR("EVLIS", subr_evlis);
+	// QUOTE LABEL FUNCTION PROG GO RETURN SET SETQ
 	DECL_SUBR("DEFINE", subr_define);
 	DECL_SUBR("DEFLIST", subr_deflist);
 	// ATTRIB PROP

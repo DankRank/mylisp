@@ -55,4 +55,4 @@
               'LAMBDA
               (MAPLIST (CADR ARGS) 'CAAR)
               (CADDR ARGS)))
-          (MAPLIST (CADR ARGS) 'CADAR)))
+          (EVLIS (MAPLIST (CADR ARGS) 'CADAR) A)))

@@ -32,3 +32,6 @@
      (COND ((ZEROP x) NIL)
            (T (BEGIN (PRINT x)
                      (test (SUB1 x))))))
+(CSETQ y 99)
+(LET test ((x y))
+     (PRINT x))
