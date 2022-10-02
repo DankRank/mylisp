@@ -731,6 +731,16 @@ int read(void **slot)
 		CDR(*slot) = cons(NULL, NULL);
 		return read(&CADR(*slot));
 	}
+	if (c == '#') {
+		c = getc(current_input);
+		if (c == ';') {
+			int r = read(slot);
+			if (r != 1)
+				return r;
+			return read(slot);
+		}
+		ungetc(c, current_input);
+	}
 	if (c == '(') {
 		c = getchar_nows();
 		if (c == ')') {
