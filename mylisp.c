@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <string.h>
+#include <setjmp.h>
 struct pair {
 	void *car, *cdr;
 };
@@ -48,6 +49,11 @@ void *atom_f = NULL;
 void *atom__t_ = NULL;
 void *atom_t = NULL;
 
+/* Error handling */
+jmp_buf jbuf;
+int jbuf_inited = 0;
+#define ERROR() do { if (!jbuf_inited) abort(); else longjmp(jbuf, 1); } while(0)
+
 /* GC */
 void **gc_roots[64];
 int gc_nroots = 0;
@@ -56,7 +62,7 @@ void gc_push(void **p)
 {
 	if (gc_nroots == 64) {
 		fprintf(stderr, "OUT OF GCROOTS\n");
-		abort();
+		ERROR();
 	}
 	gc_roots[gc_nroots++] = p;
 	// TODO: remove this
@@ -128,13 +134,17 @@ void gc_collect()
 	fprintf(stderr, "POST-GC STATS: free1=%d free2=%d\n", free1, free2);
 }
 
+/* Cons */
 void *cons_generic(void **free_list, void *car, void *cdr)
 {
 	void *c = *free_list;
 	if (!c) {
-		// TODO: GC
-		fprintf(stderr, "OUT OF MEMORY\n");
-		abort();
+		gc_collect();
+		c = *free_list;
+		if (!c) {
+			fprintf(stderr, "OUT OF MEMORY\n");
+			ERROR();
+		}
 	}
 	*free_list = CDR(c);
 	CAR(c) = car;
@@ -145,6 +155,7 @@ void *cons_generic(void **free_list, void *car, void *cdr)
 #define cons(car, cdr) cons_generic(&free1_list, (car), (cdr))
 #define cons2() cons_generic(&free2_list, NULL, NULL)
 
+/* Atom */
 #define PAIRSIZE ((int)sizeof(struct pair))
 void *alloc_string(const char *s)
 {
@@ -228,6 +239,7 @@ void put_internal(void *atom, void *prop, void *val)
 	CDR(atom) = cons(prop, CDR(atom));
 }
 
+/* SUBRs */
 void *subr_car(void *args, void *a)
 {
 	(void)a;
@@ -322,7 +334,7 @@ void *subr_define(void *args, void *a)
 	void *m = CAR(args);
 	while (m) {
 		if (!ATOM(CAAR(m)))
-			abort();
+			ERROR();
 		put_internal(CAAR(m), atom_expr, CADAR(m));
 		m = CDR(m);
 	}
@@ -333,11 +345,11 @@ void *subr_deflist(void *args, void *a)
 	(void)a;
 	void *ind = CADR(args);
 	if (!ATOM(ind))
-		abort();
+		ERROR();
 	void *m = CAR(args);
 	while (m) {
 		if (!ATOM(CAAR(m)))
-			abort();
+			ERROR();
 		put_internal(CAAR(m), ind, CADAR(m));
 		m = CDR(m);
 	}
@@ -347,14 +359,14 @@ void *subr_cset(void *args, void *a)
 {
 	(void)a;
 	if (!ATOM(CAR(args)))
-		abort();
+		ERROR();
 	put_internal(CAR(args), atom_apval, CADR(args));
 	return CADR(args);
 }
 void *subr_csetq(void *args, void *a)
 {
 	if (!ATOM(CAR(args)))
-		abort();
+		ERROR();
 	void *val = eval(CADR(args), a);
 	put_internal(CAR(args), atom_apval, val);
 	return val;
@@ -632,6 +644,7 @@ void init_env()
 	put_internal(get_atom("RECLAIM"), atom_subr, subr_reclaim);
 }
 
+/* read/print */
 int getchar_nows()
 {
 	int c;
@@ -691,7 +704,7 @@ void read(void **slot)
 		}
 	}
 	if (c == EOF)
-		abort(); // FIXME: handle this better
+		exit(0);
 	char buf[32]; // FIXME: make dynamic
 	char *p = buf;
 	do {
@@ -741,7 +754,7 @@ void print(void *c)
 		printf(")");
 	}
 }
-
+/* eval/apply */
 void *sassoc(void *x, void *y/*, void *u*/)
 {
 	while (y) {
@@ -750,7 +763,7 @@ void *sassoc(void *x, void *y/*, void *u*/)
 		y = CDR(y);
 	}
 	fprintf(stderr, "sassoc failed\n");
-	abort();
+	ERROR();
 }
 void *pair(void *x, void *y)
 {
@@ -766,7 +779,7 @@ void *pair(void *x, void *y)
 	if (x || y) {
 		/* F2 F3 */
 		fprintf(stderr, "pair error\n");
-		abort();
+		ERROR();
 	}
 	return m;
 }
@@ -879,10 +892,14 @@ int main()
 	init_env();
 	void *repl = NULL;
 	gc_push(&repl);
+	int save_nroots = gc_nroots;
+	if (setjmp(jbuf)) {
+		fprintf(stderr, "something bad happened\n");
+		gc_nroots = save_nroots;
+	}
+	jbuf_inited = 1;
 	for (;;) {
 		read(&repl);
-		print(repl);
-		printf(" => ");
 		print(eval(repl, NULL));
 		printf("\n");
 	}
