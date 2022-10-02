@@ -61,6 +61,8 @@ int gc_nroots = 0;
 int gc_watermark = 0;
 void gc_push(void **p)
 {
+	if (!p)
+		abort();
 	if (gc_nroots == 64) {
 		fprintf(stderr, "OUT OF GCROOTS\n");
 		ERROR();
@@ -150,8 +152,8 @@ void *cons_generic(void **free_list, void *car, void *cdr)
 	void *c = *free_list;
 	if (!c) {
 		if (free_list == &free1_list) {
-			gc_push(car);
-			gc_push(cdr);
+			gc_push(&car);
+			gc_push(&cdr);
 			gc_collect();
 			gc_pop();
 			gc_pop();
