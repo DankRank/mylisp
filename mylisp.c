@@ -554,6 +554,24 @@ void *subr_leftshift(void *args, void *a)
 	else
 		return cons(NUM_TAG, (void*)(lhs<<rhs));
 }
+void *subr_read(void *args, void *a)
+{
+	(void)args;
+	(void)a;
+	void read(void **slot);
+	void *slot;
+	gc_push(&slot);
+	read(&slot);
+	gc_pop();
+	return slot;
+}
+void *subr_print(void *args, void *a)
+{
+	(void)a;
+	void print(void *c);
+	print(CAR(args));
+	return NULL;
+}
 void *subr_reclaim(void *args, void *a)
 {
 	(void)args;
@@ -646,7 +664,8 @@ void init_env()
 	put_internal(get_atom("LEFTSHIFT"), atom_subr, subr_leftshift);
 	put_internal(get_atom("+"), atom_subr, subr_plus);
 	put_internal(get_atom("*"), atom_subr, subr_times);
-	// READ PRINT 
+	put_internal(get_atom("READ"), atom_subr, subr_read);
+	put_internal(get_atom("PRINT"), atom_subr, subr_print);
 	put_internal(get_atom("RECLAIM"), atom_subr, subr_reclaim);
 }
 
