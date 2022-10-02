@@ -561,7 +561,7 @@ void *subr_read(void *args, void *a)
 {
 	(void)args;
 	(void)a;
-	void read(void **slot);
+	int read(void **slot);
 	void *slot;
 	gc_push(&slot);
 	read(&slot);
@@ -573,6 +573,7 @@ void *subr_print(void *args, void *a)
 	(void)a;
 	void print(void *c);
 	print(CAR(args));
+	printf("\n");
 	return NULL;
 }
 void *subr_reclaim(void *args, void *a)
@@ -674,79 +675,84 @@ void init_env()
 	DECL_SUBR("RECLAIM", subr_reclaim);
 }
 
+FILE *current_input = 0;
 /* read/print */
 int getchar_nows()
 {
 	int c;
 	do {
-		c = getchar();
+		c = getc(current_input);
 	} while (c == ' ' || c == '\t' || c == '\n');
 	return c;
 }
 
 // slot is reachable from gc_roots
-void read(void **slot)
+int read(void **slot)
 {
 	int c = getchar_nows();
 	if (c == ')' || c == '.') {
 		fprintf(stderr, "UNEXPECTED '%c'\n", c);
-		return;
+		return 0;
 	}
 	if (c == '\'') {
 		*slot = cons(atom_quote, NULL);
 		CDR(*slot) = cons(NULL, NULL);
-		read(&CADR(*slot));
-		return;
+		return read(&CADR(*slot));
 	}
 	if (c == '(') {
 		c = getchar_nows();
 		if (c == ')') {
 			*slot = NULL;
-			return;
+			return 1;
 		}
 		if (c == '.') {
 			fprintf(stderr, "UNEXPECTED '%c'\n", c);
-			return;
+			return 0;
 		}
 		// read car
 		void *ls = cons(NULL, NULL);
 		*slot = ls;
-		ungetc(c, stdin);
+		ungetc(c, current_input);
 		read(&CAR(ls));
 		// read rest of the list
 		for (;;) {
 			c = getchar_nows();
 			if (c == ')') {
 				*slot = ls;
-				return;
+				return 1;
 			}
 			if (c == '.') {
-				read(&CDR(*slot));
+				int r = read(&CDR(*slot));
+				if (r != 1)
+					return r;
 				*slot = ls;
 				c = getchar_nows();
-				if (c != ')')
+				if (c != ')') {
 					fprintf(stderr, "UNEXPECTED '%c'\n", c);
-				return;
+					return 0;
+				}
+				return 1;
 			}
 			*slot = CDR(*slot) = cons(NULL, NULL);
-			ungetc(c, stdin);
+			ungetc(c, current_input);
 			read(&CAR(*slot));
 		}
 	}
 	if (c == EOF)
-		exit(0);
+		return -1;
 	char buf[32]; // FIXME: make dynamic
 	char *p = buf;
 	do {
 		*p++ = c;
-		c = getchar();
+		c = getc(current_input);
 	} while (c != ' ' && c != '\t' && c != '\n' && c != '(' && c != ')' && c != '.' && c != EOF);
 	*p++ = '\0';
-	ungetc(c, stdin);
+	ungetc(c, current_input);
 	if (buf[0] >= '0' && buf[0] <= '9')
 		*slot = cons(NUM_TAG, (void*)strtoll(buf, NULL, 0));
 	else
 		*slot = get_atom(buf);
+	return 1;
 }
 
 void print(void *c)
@@ -916,21 +922,36 @@ void *evalquote(void *fn, void *args)
 		return apply(fn, args, NULL);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+	(void)argc;
 	init_env();
 	void *repl = NULL;
 	gc_push(&repl);
 	int save_nroots = gc_nroots;
+	char **argp = &argv[1];
 	if (setjmp(jbuf)) {
 		fprintf(stderr, "something bad happened\n");
 		gc_nroots = save_nroots;
 	}
 	jbuf_inited = 1;
+	while (*argp) {
+		current_input = fopen(*argp++, "r");
+		if (current_input) {
+			while (read(&repl) != -1) {
+				eval(repl, NULL);
+			}
+		}
+	}
+	current_input = stdin;
 	for (;;) {
-		read(&repl);
-		print(eval(repl, NULL));
-		printf("\n");
+		int r =read(&repl);
+		if (r == 1) {
+			print(eval(repl, NULL));
+			printf("\n");
+		} else if (r == -1) {
+			return 0;
+		}
 	}
 	return 0;
 }
