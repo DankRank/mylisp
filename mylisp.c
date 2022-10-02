@@ -17,6 +17,7 @@ uint8_t heap2bm[HEAP2_MAX/8];
 
 #define CAR(p) (((struct pair*)p)->car)
 #define CDR(p) (((struct pair*)p)->cdr)
+// NOTE: This is not the same as the atom proc. This only detects non-NIL symbols.
 #define ATOM(p) (CAR(p) == ATOM_TAG)
 #define NUMBER(p) (CAR(p) == NUM_TAG)
 
@@ -218,7 +219,7 @@ void *get_atom(const char *str)
 	while (p) {
 		void *pname = get(CAR(p), atom_pname);
 		if (pname && !compare_string(str, pname))
-			return CAR(p);
+			return CAR(p) == atom_nil ? NULL : CAR(p);
 		p = CDR(p);
 	}
 	// no such atom, make one
@@ -243,12 +244,12 @@ void put_internal(void *atom, void *prop, void *val)
 void *subr_car(void *args, void *a)
 {
 	(void)a;
-	return CAAR(args);
+	return CAR(args) ? CAAR(args) : ATOM_TAG;
 }
 void *subr_cdr(void *args, void *a)
 {
 	(void)a;
-	return CDAR(args);
+	return CAR(args) ? CDAR(args) : CDR(atom_nil);
 }
 void *subr_cons(void *args, void *a)
 {
@@ -258,7 +259,7 @@ void *subr_cons(void *args, void *a)
 void *subr_atom(void *args, void *a)
 {
 	(void)a;
-	return ATOM(CAR(args)) || NUMBER(CAR(args)) ? atom_t : NULL;
+	return !CAR(args) || ATOM(CAR(args)) || NUMBER(CAR(args)) ? atom_t : NULL;
 }
 void *subr_eq(void *args, void *a)
 {
@@ -293,7 +294,7 @@ void *subr_list(void *args, void *a)
 void *subr_null(void *args, void *a)
 {
 	(void)a;
-	return CAR(args) == 0 || CAR(args) == atom_nil ? atom_t : NULL;
+	return !CAR(args) ? atom_t : NULL;
 }
 void *subr_rplaca(void *args, void *a)
 {
@@ -311,7 +312,7 @@ void *subr_and(void *args, void *a)
 	void *m = args;
 	while (m) {
 		void *cond = eval(CAR(m), a);
-		if (!cond || cond == atom_nil)
+		if (!cond)
 			return NULL;
 		m = CDR(m);
 	}
@@ -322,7 +323,7 @@ void *subr_or(void *args, void *a)
 	void *m = args;
 	while (m) {
 		void *cond = eval(CAR(m), a);
-		if (cond && cond != atom_nil)
+		if (cond)
 			return atom_t;
 		m = CDR(m);
 	}
@@ -582,8 +583,7 @@ void init_env()
 
 	atom_nil = get_atom("NIL");
 	put_internal(atom_nil, atom_apval, NULL);
-	atom_f = get_atom("F");
-	put_internal(atom_nil, atom_apval, NULL);
+	put_internal(get_atom("F"), atom_apval, NULL);
 	atom__t_ = get_atom("*T*");
 	put_internal(atom__t_, atom_apval, atom__t_);
 	atom_t = get_atom("T");
@@ -823,7 +823,7 @@ void *evcon(void *c, void *a)
 {
 	while (c) {
 		void *antecedent = eval(CAAR(c), a);
-		if (antecedent && antecedent != atom_nil)
+		if (antecedent)
 			return eval(CADAR(c), a);
 		c = CDR(c);
 	}
