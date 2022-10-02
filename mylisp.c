@@ -221,6 +221,9 @@ int compare_string(const char *s, void *ls)
 
 void *get(void *c, void *p)
 {
+	// TODO: move numbers to heap2
+	if (NUMBER(c))
+		return NULL;
 	while (c) {
 		if (CAR(c) == p)
 			return CADR(c);
@@ -823,7 +826,7 @@ void *apply(void *fn, void *args, void *a)
 {
 	if (!fn)
 		return NULL;
-	if (ATOM(fn)) {
+	if (ATOM(fn) || NUMBER(fn)) {
 		void *expr = get(fn, atom_expr);
 		if (expr)
 			return apply(expr, args, a);
