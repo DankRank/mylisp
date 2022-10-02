@@ -841,29 +841,30 @@ void *eval(void *form, void *a)
 			return CDR(sassoc(form, a/*, A8*/));
 	}
 	void *carform = CAR(form);
+	void *cdrform = CDR(form);
 	if (carform == atom_quote) // TODO: change to FSUBR?
-		return CADR(form);
+		return CAR(cdrform);
 	if (carform == atom_function) // TODO: change to FSUBR?
-		return cons(atom_funarg, cons(CADR(form), cons(a, NULL))); // FIXME: gc, TODO: list
+		return cons(atom_funarg, cons(CAR(cdrform), cons(a, NULL))); // FIXME: gc, TODO: list
 	if (carform == atom_cond)
-		return evcon(CDR(form), a);
+		return evcon(cdrform, a);
 	//if (carform == atom_prog) // NYI, FSUBR?
 	if (ATOM(carform)) {
 		void *expr = get(carform, atom_expr);
 		if (expr)
-			return apply(expr, evlis(CDR(form), a), a);
+			return apply(expr, evlis(cdrform, a), a);
 		void *fexpr = get(carform, atom_fexpr);
 		if (fexpr)
-			return apply(fexpr, cons(CDR(form), cons(a, NULL)), a); // FIXME: gc, TODO: list
+			return apply(fexpr, cons(cdrform, cons(a, NULL)), a); // FIXME: gc, TODO: list
 		void *subr = get(carform, atom_subr);
 		if (subr)
-			return ((void*(*)(void*, void*))subr)(evlis(CDR(form), a), a);
+			return ((void*(*)(void*, void*))subr)(evlis(cdrform, a), a);
 		void *fsubr = get(carform, atom_fsubr);
 		if (fsubr)
-			return ((void*(*)(void*, void*))fsubr)(CDR(form), a);
-		return eval(cons(CDR(sassoc(carform, a/*, A9*/)),CDR(form)), a);
+			return ((void*(*)(void*, void*))fsubr)(cdrform, a);
+		return eval(cons(CDR(sassoc(carform, a/*, A9*/)),cdrform), a);
 	}
-	return apply(carform, evlis(CDR(form), a), a);
+	return apply(carform, evlis(cdrform, a), a);
 }
 void *evalquote(void *fn, void *args)
 {
