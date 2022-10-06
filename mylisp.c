@@ -853,6 +853,10 @@ int read(void **slot)
 	char buf[32]; // FIXME: make dynamic
 	char *p = buf;
 	do {
+		if (p == (&buf)[1]) {
+			fprintf(stderr, "atom too long: '%.32s\n", buf);
+			ERROR();
+		}
 		*p++ = c;
 		c = getc(current_input);
 	} while (c != ' ' && c != '\t' && c != '\n' && c != '(' && c != ')' && c != '.' && c != ';' && c != EOF);
