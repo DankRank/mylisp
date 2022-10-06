@@ -36,6 +36,7 @@ uint8_t heap2bm[HEAP2_MAX/8];
 #define CAAR(p) CAR(CAR(p))
 #define CADR(p) CAR(CDR(p))
 #define CDAR(p) CDR(CAR(p))
+#define CDDR(p) CDR(CDR(p))
 #define CADDR(p) CAR(CDR(CDR(p)))
 #define CADAR(p) CAR(CDR(CAR(p)))
 #define CDADR(p) CDR(CAR(CDR(p)))
@@ -468,6 +469,26 @@ void *subr_deflist(void *args, void *a)
 	}
 	return CAR(args); // FIXME: this should return list of atoms?
 }
+void *subr_attrib(void *args, void *a)
+{
+	(void)a;
+	void *c = CAR(args);
+	while (CDR(c))
+		c = CDR(c);
+	return CDR(c) = CADR(args);
+}
+void *subr_prop(void *args, void *a)
+{
+	(void)a;
+	void *x = CAR(args);
+	void *y = CADR(args);
+	while (x) {
+		if (CAR(x) == y)
+			return CDR(x);
+		x = CDR(x);
+	}
+	return eval(CDDR(args), a);
+}
 void *subr_get(void *args, void *a)
 {
 	(void)a;
@@ -760,7 +781,8 @@ void init_env()
 	DECL_FSUBR("SETQ", subr_setq);
 	DECL_SUBR("DEFINE", subr_define);
 	DECL_SUBR("DEFLIST", subr_deflist);
-	// ATTRIB PROP
+	DECL_SUBR("ATTRIB", subr_attrib);
+	DECL_SUBR("PROP", subr_prop);
 	DECL_SUBR("GET", subr_get);
 	DECL_SUBR("CSET", subr_cset);
 	DECL_FSUBR("CSETQ", subr_csetq);
