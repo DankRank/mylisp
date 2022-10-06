@@ -11,6 +11,11 @@
 #		define TAILCALL __attribute__((musttail)) return
 #	endif
 #endif
+
+#ifdef HAVE_LIBEDIT
+#	include <histedit.h>
+#endif
+
 struct pair {
 	void *car, *cdr;
 };
@@ -650,10 +655,10 @@ void *subr_read(void *args, void *a)
 {
 	(void)args;
 	(void)a;
-	int read(void **slot);
+	int read_(void **slot);
 	void *slot;
 	gc_push(&slot);
-	read(&slot);
+	read_(&slot);
 	gc_pop();
 	return slot;
 }
@@ -770,18 +775,61 @@ void init_env()
 }
 
 FILE *current_input = 0;
+#ifdef HAVE_LIBEDIT
+EditLine *editline = 0;
+History *hist = 0;
+const char *prompt(EditLine *el)
+{
+	(void)el;
+	return "lisp> ";
+}
+const char *elbuf_start = 0, *elbuf = 0;
+#endif
 /* read/print */
+int mygetc()
+{
+#ifdef HAVE_LIBEDIT
+	if (current_input == stdin) {
+		if (elbuf < elbuf_start) {
+			elbuf++;
+			return '\n';
+		}
+		if (!elbuf || !*elbuf) {
+			int count;
+			elbuf_start = elbuf = el_gets(editline, &count);
+			if (!elbuf)
+				return EOF;
+			if (count > 0) {
+				HistEvent ev;
+				history(hist, &ev, H_ENTER, elbuf);
+			}
+		}
+		return *elbuf++;
+	}
+#endif
+	return getc(current_input);
+}
+int myungetc(int c)
+{
+#ifdef HAVE_LIBEDIT
+	if (current_input == stdin) {
+		elbuf--;
+		return c;
+	}
+#endif
+	return ungetc(c, current_input);
+}
 int getchar_nows()
 {
 	int c;
 	do {
-		c = getc(current_input);
+		c = mygetc();
 	} while (c == ' ' || c == '\t' || c == '\n');
 	return c;
 }
 
 // slot is reachable from gc_roots
-int read(void **slot)
+int read_(void **slot)
 {
 	int c = getchar_nows();
 	if (c == ')' || c == '.') {
@@ -791,23 +839,23 @@ int read(void **slot)
 	if (c == '\'') {
 		*slot = cons(atom_quote, NULL);
 		CDR(*slot) = cons(NULL, NULL);
-		return read(&CADR(*slot));
+		return read_(&CADR(*slot));
 	}
 	if (c == ';') {
 		do {
-			c = getc(current_input);
+			c = mygetc();
 		} while (c != EOF && c != '\n');
-		return read(slot);
+		return read_(slot);
 	}
 	if (c == '#') {
-		c = getc(current_input);
+		c = mygetc();
 		if (c == ';') {
-			int r = read(slot);
+			int r = read_(slot);
 			if (r != 1)
 				return r;
-			return read(slot);
+			return read_(slot);
 		}
-		ungetc(c, current_input);
+		myungetc(c);
 	}
 	if (c == '(') {
 		c = getchar_nows();
@@ -822,8 +870,8 @@ int read(void **slot)
 		// read car
 		void *ls = cons(NULL, NULL);
 		*slot = ls;
-		ungetc(c, current_input);
-		read(&CAR(ls));
+		myungetc(c);
+		read_(&CAR(ls));
 		// read rest of the list
 		for (;;) {
 			c = getchar_nows();
@@ -832,7 +880,7 @@ int read(void **slot)
 				return 1;
 			}
 			if (c == '.') {
-				int r = read(&CDR(*slot));
+				int r = read_(&CDR(*slot));
 				if (r != 1)
 					return r;
 				*slot = ls;
@@ -844,8 +892,8 @@ int read(void **slot)
 				return 1;
 			}
 			*slot = CDR(*slot) = cons(NULL, NULL);
-			ungetc(c, current_input);
-			read(&CAR(*slot));
+			myungetc(c);
+			read_(&CAR(*slot));
 		}
 	}
 	if (c == EOF)
@@ -858,10 +906,10 @@ int read(void **slot)
 			ERROR();
 		}
 		*p++ = c;
-		c = getc(current_input);
+		c = mygetc();
 	} while (c != ' ' && c != '\t' && c != '\n' && c != '(' && c != ')' && c != '.' && c != ';' && c != EOF);
 	*p++ = '\0';
-	ungetc(c, current_input);
+	myungetc(c);
 	if (buf[0] >= '0' && buf[0] <= '9')
 		*slot = cons(NUM_TAG, (void*)strtoll(buf, NULL, 0));
 	else
@@ -1095,6 +1143,19 @@ int main(int argc, char *argv[])
 {
 	(void)argc;
 	init_env();
+#ifdef HAVE_LIBEDIT
+	editline = el_init("mylisp", stdin, stdout, stderr);
+	if (!editline)
+		abort();
+	el_set(editline, EL_PROMPT, &prompt);
+	el_set(editline, EL_EDITOR, "emacs");
+	hist = history_init();
+	if (!hist)
+		abort();
+	HistEvent ev;
+	history(hist, &ev, H_SETSIZE, 1000);
+	el_set(editline, EL_HIST, history, hist);
+#endif
 	void *volatile repl = NULL;
 	gc_push((void **)&repl);
 	volatile int save_nroots = gc_nroots;
@@ -1113,20 +1174,24 @@ int main(int argc, char *argv[])
 		}
 		current_input = fopen(*argp++, "r");
 		if (current_input) {
-			while (read((void **)&repl) != -1) {
+			while (read_((void **)&repl) != -1) {
 				eval(repl, NULL);
 			}
 		}
 	}
 	current_input = stdin;
 	for (;;) {
-		int r = read((void **)&repl);
+		int r = read_((void **)&repl);
 		if (r == 1) {
 			print(eval(repl, NULL));
 			printf("\n");
 		} else if (r == -1) {
-			return 0;
+			break;
 		}
 	}
+#ifdef HAVE_LIBEDIT
+	history_end(hist);
+	el_end(editline);
+#endif
 	return 0;
 }
