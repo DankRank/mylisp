@@ -836,7 +836,7 @@ void print(void *c)
 		print(CAR(c));
 		c = CDR(c);
 		while (c) {
-			if (CAR(c) == ATOM_TAG) {
+			if (CAR(c) == ATOM_TAG || CAR(c) == NUM_TAG) {
 				printf(" . ");
 				print(c);
 				break;
