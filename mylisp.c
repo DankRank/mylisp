@@ -425,6 +425,20 @@ void *subr_evlis(void *args, void *a)
 	void *evlis(void *form, void *a, void *save);
 	return evlis(CAR(args), CADR(args), NULL);
 }
+void *sassoc(void *x, void *y/*, void *u*/);
+void *subr_set(void *args, void *a)
+{
+	if (!ATOM(CAR(args)))
+		ERROR();
+	return CDR(sassoc(CAR(args), a/*, A5*/)) = CADR(args);
+}
+void *subr_setq(void *args, void *a)
+{
+	if (!ATOM(CAR(args)))
+		ERROR();
+	// TODO: gc
+	return CDR(sassoc(CAR(args), a/*, A4*/)) = eval(CADR(args), a);
+}
 void *subr_define(void *args, void *a)
 {
 	(void)a;
@@ -677,6 +691,16 @@ void *subr_reclaim(void *args, void *a)
 	gc_collect();
 	return NULL;
 }
+void *subr_error(void *args, void *a)
+{
+	(void)a;
+	void print(void *c);
+	printf("ERROR: ");
+	print(args);
+	printf("\n");
+	ERROR();
+	return NULL;
+}
 
 void init_env()
 {
@@ -731,7 +755,9 @@ void init_env()
 	DECL_SUBR("APPLY", subr_apply);
 	DECL_SUBR("EVAL", subr_eval);
 	DECL_SUBR("EVLIS", subr_evlis);
-	// QUOTE LABEL FUNCTION PROG GO RETURN SET SETQ
+	// QUOTE LABEL FUNCTION PROG GO RETURN
+	DECL_SUBR("SET", subr_set);
+	DECL_FSUBR("SETQ", subr_setq);
 	DECL_SUBR("DEFINE", subr_define);
 	DECL_SUBR("DEFLIST", subr_deflist);
 	// ATTRIB PROP
@@ -772,6 +798,7 @@ void init_env()
 	DECL_SUBR("READ", subr_read);
 	DECL_SUBR("PRINT", subr_print);
 	DECL_SUBR("RECLAIM", subr_reclaim);
+	DECL_SUBR("ERROR", subr_error); // custom
 }
 
 FILE *current_input = 0;

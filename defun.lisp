@@ -96,13 +96,17 @@
              ((P X) (F X))
              (T (SEARCH (CDR X) P F U))))
 ; Other stuff
-(DEFUNF LET (ARGS A)
+(DEFUN SASSOC (X Y U)
+    (COND ((NULL Y) (U))
+          ((EQ (CAAR Y) X) (CAR Y))
+          (T (SASSOC X (CDR Y) U))))
+(DEFUNF LET (LET*ARGS LET*A)
         (APPLY
           (LIST
             'LABEL
-            (CAR ARGS)
+            (CAR LET*ARGS)
             (LIST
               'LAMBDA
-              (MAPLIST (CADR ARGS) 'CAAR)
-              (CADDR ARGS)))
-          (EVLIS (MAPLIST (CADR ARGS) 'CADAR) A)))
+              (MAPLIST (CADR LET*ARGS) 'CAAR)
+              (CADDR LET*ARGS)))
+          (EVLIS (MAPLIST (CADR LET*ARGS) 'CADAR) LET*A)))
