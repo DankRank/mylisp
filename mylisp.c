@@ -1091,10 +1091,10 @@ int main(int argc, char *argv[])
 {
 	(void)argc;
 	init_env();
-	void *repl = NULL;
-	gc_push(&repl);
-	int save_nroots = gc_nroots;
-	char **argp = &argv[1];
+	void *volatile repl = NULL;
+	gc_push((void **)&repl);
+	volatile int save_nroots = gc_nroots;
+	char **volatile argp = &argv[1];
 	if (setjmp(jbuf)) {
 		fprintf(stderr, "something bad happened\n");
 		gc_nroots = save_nroots;
@@ -1109,14 +1109,14 @@ int main(int argc, char *argv[])
 		}
 		current_input = fopen(*argp++, "r");
 		if (current_input) {
-			while (read(&repl) != -1) {
+			while (read((void **)&repl) != -1) {
 				eval(repl, NULL);
 			}
 		}
 	}
 	current_input = stdin;
 	for (;;) {
-		int r =read(&repl);
+		int r = read((void **)&repl);
 		if (r == 1) {
 			print(eval(repl, NULL));
 			printf("\n");
