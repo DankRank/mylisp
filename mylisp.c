@@ -31,6 +31,7 @@ uint8_t heap2bm[HEAP2_MAX/8];
 void *free1_list = NULL;
 void *free2_list = NULL;
 void *atoms_list = NULL;
+void *evlis_list = NULL;
 
 void *atom_pname = NULL;
 void *atom_expr = NULL;
@@ -79,13 +80,21 @@ void gc_pop()
 	gc_nroots--;
 }
 /* General rules for GC:
- * Functions which call cons will generally require rooted
- * arguments and return dangling values.
+ * Functions which call cons take and return dangling values.
  * For other functions it doesn't matter, since they don't
  * trigger gc cycle.
- * Cons itself is an exception to the rule, as it protects
- * its arguments. You can't do cons(cons(a,b), cons(c,d))
- * though, for obvious reasons.
+ * When calling cons, everything that's not reachable from the
+ * resulting cons cell should be protected using gc_push.
+ * There's a limited number of gc_push slots, so you shouldn't
+ * recurse while you have protected values. Evlis is the only
+ * function in the interpreter that's truly recursive, so it
+ * pushes the values onto the global evlis_list, which is
+ * always protected. Why not keep the entire gc_roots in a
+ * single list? Because pushing to the list requires using cons,
+ * and the most you can protect with that is two values:
+ *     ls = cons(cons(a, b), ls);
+ * In evlis we actually need to protect 3 values, hence why
+ * we gc_push one of them before creating the list.
  */
 
 #define MARK(c) ((void*)((intptr_t)(c) | 1))
@@ -119,6 +128,24 @@ void gc_stats()
 		free2++;
 	fprintf(stderr, "PRE-GC  STATS: free1=%d free2=%d\n", free1, free2);
 }
+#if 0
+void gc_check(void *p)
+{
+	if (!p)
+		return;
+	if ((struct pair *)p >= &heap[HEAP1_MAX]) {
+		fprintf(stderr, "heap2 in gc_check\n");
+		return;
+	}
+	memset(heap2bm, 0, sizeof(heap2bm));
+	for (int i = 0; i < gc_nroots; i++)
+		gc_mark(*gc_roots[i]);
+	if (!ISMARK(CAR(p)))
+		fprintf(stderr, "unmarked in gc_check\n");
+	for (int i = 0; i < HEAP1_MAX; i++)
+		CAR(&heap[i]) = UNMARK(CAR(&heap[i]));
+}
+#endif
 void gc_collect()
 {
 	gc_stats();
@@ -154,11 +181,17 @@ void *cons_generic(void **free_list, void *car, void *cdr)
 	void *c = *free_list;
 	if (!c) {
 		if (free_list == &free1_list) {
-			gc_push(&car);
-			gc_push(&cdr);
+			if (car != NUM_TAG) {
+				if (car != ATOM_TAG)
+					gc_push(&car);
+				gc_push(&cdr);
+			}
 			gc_collect();
-			gc_pop();
-			gc_pop();
+			if (car != NUM_TAG) {
+				gc_pop();
+				if (car != ATOM_TAG)
+					gc_pop();
+			}
 		} else {
 			gc_collect();
 		}
@@ -253,6 +286,7 @@ void *get_atom(const char *str)
 // TODO: add ability to replace stuff
 void put_internal(void *atom, void *prop, void *val)
 {
+	// TODO: gc
 	CDR(atom) = cons(val, CDR(atom));
 	CDR(atom) = cons(prop, CDR(atom));
 }
@@ -330,6 +364,7 @@ void *subr_and(void *args, void *a)
 {
 	void *m = args;
 	while (m) {
+		// TODO: gc
 		void *cond = eval(CAR(m), a);
 		if (!cond)
 			return NULL;
@@ -341,6 +376,7 @@ void *subr_or(void *args, void *a)
 {
 	void *m = args;
 	while (m) {
+		// TODO: gc
 		void *cond = eval(CAR(m), a);
 		if (cond)
 			return atom_t;
@@ -353,6 +389,7 @@ void *subr_begin(void *args, void *a)
 	void *m = args;
 	void *res = NULL;
 	while (m) {
+		// TODO: gc
 		res = eval(CAR(m), a);
 		m = CDR(m);
 	}
@@ -372,8 +409,8 @@ void *subr_eval(void *args, void *a)
 void *subr_evlis(void *args, void *a)
 {
 	(void)a;
-	void *evlis(void *form, void *a);
-	return evlis(CAR(args), CADR(args));
+	void *evlis(void *form, void *a, void *save);
+	return evlis(CAR(args), CADR(args), NULL);
 }
 void *subr_define(void *args, void *a)
 {
@@ -382,6 +419,7 @@ void *subr_define(void *args, void *a)
 	while (m) {
 		if (!ATOM(CAAR(m)))
 			ERROR();
+		// TODO: gc
 		put_internal(CAAR(m), atom_expr, CADAR(m));
 		m = CDR(m);
 	}
@@ -397,6 +435,7 @@ void *subr_deflist(void *args, void *a)
 	while (m) {
 		if (!ATOM(CAAR(m)))
 			ERROR();
+		// TODO: gc
 		put_internal(CAAR(m), ind, CADAR(m));
 		m = CDR(m);
 	}
@@ -412,6 +451,7 @@ void *subr_cset(void *args, void *a)
 	(void)a;
 	if (!ATOM(CAR(args)))
 		ERROR();
+	// TODO: gc
 	put_internal(CAR(args), atom_apval, CADR(args));
 	return CADR(args);
 }
@@ -419,7 +459,9 @@ void *subr_csetq(void *args, void *a)
 {
 	if (!ATOM(CAR(args)))
 		ERROR();
+	// TODO: gc
 	void *val = eval(CADR(args), a);
+	// TODO: gc
 	put_internal(CAR(args), atom_apval, val);
 	return val;
 }
@@ -466,8 +508,9 @@ void *subr_remainder(void *args, void *a)
 void *subr_divide(void *args, void *a)
 {
 	(void)a;
-	// FIXME: gc
-	return cons(subr_quotient(args, a), cons(subr_remainder(args, a), NULL));
+	void *rem = (void*)((intptr_t)CDAR(args) / (intptr_t)CDADR(args));
+	void *div = (void*)((intptr_t)CDAR(args) % (intptr_t)CDADR(args));
+	return cons(div, cons(rem, NULL));
 }
 void *subr_add1(void *args, void *a)
 {
@@ -626,6 +669,7 @@ void init_env()
 {
 	gc_collect(); // this initializes the heap
 	gc_push(&atoms_list);
+	gc_push(&evlis_list);
 
 	{
 		void *c = cons(NULL, cons(alloc_string("PNAME"), NULL));
@@ -655,9 +699,8 @@ void init_env()
 	atom_t = get_atom("T");
 	put_internal(atom_t, atom_apval, atom__t_);
 
-	// FIXME: it's a GC bug to put these directly into the subr prop
-#define DECL_SUBR(atom, s) put_internal(get_atom(atom), atom_subr, s)
-#define DECL_FSUBR(atom, s) put_internal(get_atom(atom), atom_fsubr, s)
+#define DECL_SUBR(atom, s) put_internal(get_atom(atom), atom_subr, cons(NUM_TAG, s))
+#define DECL_FSUBR(atom, s) put_internal(get_atom(atom), atom_fsubr, cons(NUM_TAG, s))
 	DECL_SUBR("CAR", subr_car);
 	DECL_SUBR("CDR", subr_cdr);
 	DECL_SUBR("CONS", subr_cons);
@@ -869,11 +912,15 @@ void *pair(void *x, void *y)
 {
 	void *m = NULL;
 	gc_push(&m);
+	gc_push(&x);
+	gc_push(&y);
 	while (x && y) {
 		m = cons(cons(CAR(x), CAR(y)), m);
 		x = CDR(x);
 		y = CDR(y);
 	}
+	gc_pop();
+	gc_pop();
 	gc_pop();
 	if (x || y) {
 		/* F2 F3 */
@@ -892,6 +939,7 @@ void *nconc(void *x, void *y)
 	CDR(m) = y;
 	return x;
 }
+#define INVOKE(subr, args, a) (((void*(*)(void*, void*))CDR(subr))(args, a))
 void *apply(void *fn, void *args, void *a)
 {
 	if (!fn)
@@ -902,19 +950,33 @@ void *apply(void *fn, void *args, void *a)
 			return apply(expr, args, a);
 		void *subr = get(fn, atom_subr);
 		if (subr)
-			return ((void*(*)(void*, void*))subr)(args, a);
+			return INVOKE(subr, args, a);
 		return apply(CDR(sassoc(fn, a/*, A2*/)), args, a);
 	}
 	if (CAR(fn) == atom_label) {
-		// FIXME: gc
-		return apply(CADDR(fn), args, cons(cons(CADR(fn), CADDR(fn)), a));
+		gc_push(&args);
+		gc_push(&a);
+		a = cons(cons(CADR(fn), CADDR(fn)), a);
+		gc_pop();
+		gc_pop();
+		return apply(CDAR(a), args, a);
 	}
 	if (CAR(fn) == atom_funarg) {
 		return apply(CADR(fn), args, CADDR(fn));
 	}
 	if (CAR(fn) == atom_lambda) {
-		// FIXME: gc
-		return eval(CADDR(fn), nconc(pair(CADR(fn), args), a));
+		void *body = CADDR(fn);
+		gc_push(&body);
+		gc_push(&a);
+		//printf("running lambda ");
+		//print(CADR(fn));
+		//printf(" ");
+		//print(args);
+		//printf("\n");
+		a = nconc(pair(CADR(fn), args), a);
+		gc_pop();
+		gc_pop();
+		return eval(body, a);
 	}
 	return apply(eval(fn, a), args, a);
 }
@@ -928,15 +990,25 @@ void *evcon(void *c, void *a)
 	}
 	return NULL; // FIXME: a3
 }
-void *evlis(void *m, void *a)
+void *evlis(void *m, void *a, void *save)
 {
-	void *ls = NULL; // FIXME: gc
-	void **p = &ls;
+	if (!m)
+		return NULL;
+
+	// push (NIL m a . save) onto the the list
+	gc_push(&m);
+	evlis_list = cons(cons(NULL, cons(m, cons(a, save))), evlis_list);
+	gc_pop();
+
+	void **p = &CAAR(evlis_list);
+	void **mp = &CADAR(evlis_list); // small optimization so that evaled stuff can get GC'd
 	while (m) {
 		*p = cons(eval(CAR(m), a), NULL);
 		p = &CDR(*p);
-		m = CDR(m);
+		*mp = m = CDR(m);
 	}
+	void *ls = CAAR(evlis_list);
+	evlis_list = CDR(evlis_list);
 	return ls;
 }
 void *eval(void *form, void *a)
@@ -964,24 +1036,31 @@ void *eval(void *form, void *a)
 	if (ATOM(carform)) {
 		void *expr = get(carform, atom_expr);
 		if (expr)
-			return apply(expr, evlis(cdrform, a), a);
+			return apply(expr, evlis(cdrform, a, expr), a);
 		void *fexpr = get(carform, atom_fexpr);
-		if (fexpr)
-			return apply(fexpr, cons(cdrform, cons(a, NULL)), a); // FIXME: gc, TODO: list
+		if (fexpr) {
+			gc_push(&form);
+			void *args = cons(cdrform, cons(a, NULL)); // TODO: list?
+			gc_pop();
+			return apply(fexpr, args, a);
+		}
 		void *subr = get(carform, atom_subr);
 		if (subr)
-			return ((void*(*)(void*, void*))subr)(evlis(cdrform, a), a);
+			return INVOKE(subr, evlis(cdrform, a, subr), a);
 		void *fsubr = get(carform, atom_fsubr);
 		if (fsubr)
-			return ((void*(*)(void*, void*))fsubr)(cdrform, a);
-		return eval(cons(CDR(sassoc(carform, a/*, A9*/)),cdrform), a);
+			return INVOKE(fsubr, cdrform, a);
+		gc_push(&a);
+		form = cons(CDR(sassoc(carform, a/*, A9*/)), cdrform);
+		gc_pop();
+		return eval(form, a);
 	}
-	return apply(carform, evlis(cdrform, a), a);
+	return apply(carform, evlis(cdrform, a, carform), a);
 }
 void *evalquote(void *fn, void *args)
 {
 	if (get(fn, atom_fexpr) || get(fn, atom_fsubr))
-		return eval(cons(fn,args), NULL); // FIXME: gc
+		return eval(cons(fn,args), NULL);
 	else
 		return apply(fn, args, NULL);
 }
@@ -997,6 +1076,7 @@ int main(int argc, char *argv[])
 	if (setjmp(jbuf)) {
 		fprintf(stderr, "something bad happened\n");
 		gc_nroots = save_nroots;
+		evlis_list = NULL;
 	}
 	jbuf_inited = 1;
 	while (*argp) {
