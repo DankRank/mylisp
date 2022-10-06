@@ -58,6 +58,8 @@ void *atom_f = NULL;
 void *atom__t_ = NULL;
 void *atom_t = NULL;
 
+int debug = 0;
+
 /* Error handling */
 jmp_buf jbuf;
 int jbuf_inited = 0;
@@ -984,11 +986,13 @@ void *apply(void *fn, void *args, void *a)
 		void *body = CADDR(fn);
 		gc_push(&body);
 		gc_push(&a);
-		//printf("running lambda ");
-		//print(CADR(fn));
-		//printf(" ");
-		//print(args);
-		//printf("\n");
+		if (debug) {
+			printf("running lambda ");
+			print(CADR(fn));
+			printf(" ");
+			print(args);
+			printf("\n");
+		}
 		a = nconc_smart(pair(CADR(fn), args), a);
 		gc_pop();
 		gc_pop();
@@ -1099,6 +1103,11 @@ int main(int argc, char *argv[])
 	}
 	jbuf_inited = 1;
 	while (*argp) {
+		if (!strcmp(*argp, "-d")) {
+			argp++;
+			debug = 1;
+			continue;
+		}
 		current_input = fopen(*argp++, "r");
 		if (current_input) {
 			while (read(&repl) != -1) {
