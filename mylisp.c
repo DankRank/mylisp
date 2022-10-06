@@ -223,14 +223,14 @@ void *cons_generic(void **free_list, void *car, void *cdr)
 #define PAIRSIZE ((int)sizeof(struct pair))
 void *alloc_string(const char *s)
 {
-	int len = strlen(s)/PAIRSIZE*PAIRSIZE;
-	void *c = strncpy(cons2(), &s[len], PAIRSIZE);
-	void *ls = cons(c, NULL);
+	int slen = strlen(s);
+	int len = slen/PAIRSIZE*PAIRSIZE;
+	void *ls = NULL;
 	gc_push(&ls);
-	while (len != 0) {
-		c = memcpy(cons2(), &s[len -= PAIRSIZE], PAIRSIZE);
-		ls = cons(c, ls);
-	}
+	if (slen % PAIRSIZE)
+		ls = cons(strncpy(cons2(), &s[len], PAIRSIZE), NULL);
+	while (len != 0)
+		ls = cons(memcpy(cons2(), &s[len -= PAIRSIZE], PAIRSIZE), ls);
 	gc_pop();
 	return ls;
 }
