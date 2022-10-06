@@ -4,6 +4,13 @@
 #include <inttypes.h>
 #include <string.h>
 #include <setjmp.h>
+#define TAILCALL return
+#if defined __has_attribute
+#	if __has_attribute(musttail)
+#		undef TAILCALL
+#		define TAILCALL __attribute__((musttail)) return
+#	endif
+#endif
 struct pair {
 	void *car, *cdr;
 };
@@ -359,7 +366,8 @@ void *subr_rplacd(void *args, void *a)
 	CDAR(args) = CADR(args);
 	return CAR(args);
 }
-void *eval(void *fn, void *a);
+void *eval(void *fn, void *a, void *unused);
+#define eval(a,b) eval(a,b,0)
 void *subr_and(void *args, void *a)
 {
 	void *m = args;
@@ -403,7 +411,6 @@ void *subr_apply(void *args, void *a)
 void *subr_eval(void *args, void *a)
 {
 	(void)a;
-	void *eval(void *form, void *a);
 	return eval(CAR(args), CADR(args));
 }
 void *subr_evlis(void *args, void *a)
@@ -956,11 +963,11 @@ void *apply(void *fn, void *args, void *a)
 	if (ATOM(fn) || NUMBER(fn)) {
 		void *expr = get(fn, atom_expr);
 		if (expr)
-			return apply(expr, args, a);
+			TAILCALL apply(expr, args, a);
 		void *subr = get(fn, atom_subr);
 		if (subr)
 			return INVOKE(subr, args, a);
-		return apply(CDR(sassoc(fn, a/*, A2*/)), args, a);
+		TAILCALL apply(CDR(sassoc(fn, a/*, A2*/)), args, a);
 	}
 	if (CAR(fn) == atom_label) {
 		gc_push(&args);
@@ -968,10 +975,10 @@ void *apply(void *fn, void *args, void *a)
 		a = cons(cons(CADR(fn), CADDR(fn)), a);
 		gc_pop();
 		gc_pop();
-		return apply(CDAR(a), args, a);
+		TAILCALL apply(CDAR(a), args, a);
 	}
 	if (CAR(fn) == atom_funarg) {
-		return apply(CADR(fn), args, CADDR(fn));
+		TAILCALL apply(CADR(fn), args, CADDR(fn));
 	}
 	if (CAR(fn) == atom_lambda) {
 		void *body = CADDR(fn);
@@ -985,13 +992,15 @@ void *apply(void *fn, void *args, void *a)
 		a = nconc_smart(pair(CADR(fn), args), a);
 		gc_pop();
 		gc_pop();
-		return eval(body, a);
+		TAILCALL eval(body, a);
 	}
-	return apply(eval(fn, a), args, a);
+	TAILCALL apply(eval(fn, a), args, a);
 }
-void *evcon(void *c, void *a)
+void *evcon(void *c, void *a, void *unused)
 {
+	(void)unused;
 	while (c) {
+		// TODO: gc
 		void *antecedent = eval(CAAR(c), a);
 		if (antecedent)
 			return eval(CADAR(c), a);
@@ -1020,8 +1029,9 @@ void *evlis(void *m, void *a, void *save)
 	evlis_list = CDR(evlis_list);
 	return ls;
 }
-void *eval(void *form, void *a)
+void *(eval)(void *form, void *a, void *unused)
 {
+	(void)unused;
 	if (!form)
 		return NULL;
 	if (NUMBER(form))
@@ -1040,18 +1050,18 @@ void *eval(void *form, void *a)
 	if (carform == atom_function) // TODO: change to FSUBR?
 		return cons(atom_funarg, cons(CAR(cdrform), cons(a, NULL))); // FIXME: gc, TODO: list
 	if (carform == atom_cond)
-		return evcon(cdrform, a);
+		TAILCALL evcon(cdrform, a, 0);
 	//if (carform == atom_prog) // NYI, FSUBR?
 	if (ATOM(carform)) {
 		void *expr = get(carform, atom_expr);
 		if (expr)
-			return apply(expr, evlis(cdrform, a, expr), a);
+			TAILCALL apply(expr, evlis(cdrform, a, expr), a);
 		void *fexpr = get(carform, atom_fexpr);
 		if (fexpr) {
 			gc_push(&form);
 			void *args = cons(cdrform, cons(a, NULL)); // TODO: list?
 			gc_pop();
-			return apply(fexpr, args, a);
+			TAILCALL apply(fexpr, args, a);
 		}
 		void *subr = get(carform, atom_subr);
 		if (subr)
@@ -1062,9 +1072,9 @@ void *eval(void *form, void *a)
 		gc_push(&a);
 		form = cons(CDR(sassoc(carform, a/*, A9*/)), cdrform);
 		gc_pop();
-		return eval(form, a);
+		TAILCALL eval(form, a);
 	}
-	return apply(carform, evlis(cdrform, a, carform), a);
+	TAILCALL apply(carform, evlis(cdrform, a, carform), a);
 }
 void *evalquote(void *fn, void *args)
 {
