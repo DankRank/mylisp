@@ -721,7 +721,7 @@ void init_env()
 	DECL_SUBR("RPLACD", subr_rplacd);
 	DECL_FSUBR("AND", subr_and);
 	DECL_FSUBR("OR", subr_or);
-	DECL_FSUBR("NOT", subr_null); // intentional
+	DECL_SUBR("NOT", subr_null); // intentional
 	DECL_FSUBR("BEGIN", subr_begin); // custom
 	DECL_SUBR("APPLY", subr_apply);
 	DECL_SUBR("EVAL", subr_eval);
