@@ -939,6 +939,15 @@ void *nconc(void *x, void *y)
 	CDR(m) = y;
 	return x;
 }
+void *nconc_smart(void *x, void *y)
+{
+	void *xx = x;
+	while (xx && y && CAAR(xx) == CAAR(y)) {
+		xx = CDR(xx);
+		y = CDR(y);
+	}
+	return nconc(x, y);
+}
 #define INVOKE(subr, args, a) (((void*(*)(void*, void*))CDR(subr))(args, a))
 void *apply(void *fn, void *args, void *a)
 {
@@ -973,7 +982,7 @@ void *apply(void *fn, void *args, void *a)
 		//printf(" ");
 		//print(args);
 		//printf("\n");
-		a = nconc(pair(CADR(fn), args), a);
+		a = nconc_smart(pair(CADR(fn), args), a);
 		gc_pop();
 		gc_pop();
 		return eval(body, a);
