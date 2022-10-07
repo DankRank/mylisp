@@ -113,3 +113,7 @@
 (DEFUN ATOMINFO (A)
     (COND ((NULL (CDR A)) NIL)
           (T (CONS (CADR A) (ATOMINFO (CDDR A))))))
+(DEFUN COLLECTATOMS (P)
+    (LET F ((P P) (LS NIL))
+         (COND ((ATOM P) (COND ((MEMBER P LS) LS) (T (CONS P LS))))
+               (T (F (CDR P) (F (CAR P) (BEGIN (RECLAIM) LS))))))) ; workaround some GC bug

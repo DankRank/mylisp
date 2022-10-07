@@ -10,6 +10,12 @@
 ;; START
 DEFINE((
 ; everything is namespaced with Q
+; symbols both used and handled:
+; CAR CDR CONS ATOM EQ LAMBDA (LABEL) QUOTE COND
+; these work in cond, but they need to be added to the environment:
+; NIL T
+; stuff we don't define:
+; CADAR CADDR CADR CDAR CAAR NULL DEFINE
 (QEQUAL (LAMBDA (X Y) (COND ((ATOM X) (COND ((ATOM Y) (EQ X Y)) (T NIL)))
                             ((QEQUAL (CAR X) (CAR Y)) (QEQUAL (CDR X) (CDR Y)))
                             (T NIL)) ))
