@@ -881,6 +881,8 @@ int getchar_nows()
 int read_(void **slot)
 {
 	int c = getchar_nows();
+	if (c == EOF)
+		return -1;
 	if (c == ')' || c == '.') {
 		fprintf(stderr, "UNEXPECTED '%c'\n", c);
 		return 0;
@@ -905,6 +907,7 @@ int read_(void **slot)
 			return read_(slot);
 		}
 		myungetc(c);
+		c = '#';
 	}
 	if (c == '(') {
 		c = getchar_nows();
@@ -924,6 +927,25 @@ int read_(void **slot)
 		// read rest of the list
 		for (;;) {
 			c = getchar_nows();
+			if (c == EOF)
+				return -1;
+			if (c == ';') {
+				do {
+					c = mygetc();
+				} while (c != EOF && c != '\n');
+				continue;
+			}
+			if (c == '#') {
+				c = mygetc();
+				if (c == ';') {
+					int r = read_(&CDR(*slot));
+					CDR(*slot) = NULL;
+					if (r != 1)
+						return r;
+				}
+				myungetc(c); // FIXME: too much ungetc
+				c = '#';
+			}
 			if (c == ')') {
 				*slot = ls;
 				return 1;
@@ -934,6 +956,8 @@ int read_(void **slot)
 					return r;
 				*slot = ls;
 				c = getchar_nows();
+				if (c == EOF)
+					return -1;
 				if (c != ')') {
 					fprintf(stderr, "UNEXPECTED '%c'\n", c);
 					return 0;
@@ -945,8 +969,6 @@ int read_(void **slot)
 			read_(&CAR(*slot));
 		}
 	}
-	if (c == EOF)
-		return -1;
 	char buf[32]; // FIXME: make dynamic
 	char *p = buf;
 	do {
