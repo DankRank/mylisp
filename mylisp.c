@@ -1013,7 +1013,7 @@ int read_(void **slot)
 void print(void *c)
 {
 	if (!c) {
-		printf("()");
+		printf("NIL");
 	} else if (CAR(c) == NUM_TAG) {
 		printf("%" PRIdPTR, (intptr_t)CDR(c));
 	} else if (CAR(c) == ATOM_TAG) {
