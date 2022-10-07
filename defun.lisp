@@ -110,3 +110,6 @@
               (MAPLIST (CADR LET*ARGS) 'CAAR)
               (CADDR LET*ARGS)))
           (EVLIS (MAPLIST (CADR LET*ARGS) 'CADAR) LET*A)))
+(DEFUN ATOMINFO (A)
+    (COND ((NULL (CDR A)) NIL)
+          (T (CONS (CADR A) (ATOMINFO (CDDR A))))))
