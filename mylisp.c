@@ -63,6 +63,7 @@ void *atom_nil = NULL;
 void *atom_f = NULL;
 void *atom__t_ = NULL;
 void *atom_t = NULL;
+void *atom_trace = NULL;
 
 int debug = 0;
 
@@ -722,6 +723,23 @@ void *subr_error(void *args, void *a)
 	ERROR();
 	return NULL;
 }
+void *subr_trace(void *args, void *a)
+{
+	(void)a;
+	// FIXME: gc
+	for (void *m = CAR(args); m; m = CDR(m))
+		put_internal(CAR(m), atom_trace, atom_t);
+	return NULL;
+}
+void *subr_untrace(void *args, void *a)
+{
+	(void)a;
+	// FIXME: gc
+	// FIXME: use remprop
+	for (void *m = CAR(args); m; m = CDR(m))
+		put_internal(CAR(m), atom_trace, NULL);
+	return NULL;
+}
 
 void init_env()
 {
@@ -756,6 +774,8 @@ void init_env()
 	put_internal(atom__t_, atom_apval, atom__t_);
 	atom_t = get_atom("T");
 	put_internal(atom_t, atom_apval, atom__t_);
+
+	atom_trace = get_atom("TRACE");
 
 #define DECL_SUBR(atom, s) put_internal(get_atom(atom), atom_subr, cons(NUM_TAG, s))
 #define DECL_FSUBR(atom, s) put_internal(get_atom(atom), atom_fsubr, cons(NUM_TAG, s))
@@ -820,7 +840,9 @@ void init_env()
 	DECL_SUBR("READ", subr_read);
 	DECL_SUBR("PRINT", subr_print);
 	DECL_SUBR("RECLAIM", subr_reclaim);
-	DECL_SUBR("ERROR", subr_error); // custom
+	DECL_SUBR("ERROR", subr_error); // custom-ish
+	DECL_SUBR("TRACE", subr_trace); // custom-ish
+	DECL_SUBR("UNTRACE", subr_untrace); // custom-ish
 }
 
 FILE *current_input = 0;
@@ -1180,8 +1202,28 @@ void *(eval)(void *form, void *a, void *unused)
 	//if (carform == atom_prog) // NYI, FSUBR?
 	if (ATOM(carform)) {
 		void *expr = get(carform, atom_expr);
-		if (expr)
-			TAILCALL apply(expr, evlis(cdrform, a, expr), a);
+		if (expr) {
+			if (get(carform, atom_trace)) {
+				// probably lots of gc issues
+				void *args = evlis(cdrform, a, expr);
+				printf("ARGUMENTS OF ");
+				print(carform);
+				for (void *m = args; m; m = CDR(m)) {
+					printf("\n");
+					print(CAR(m));
+				}
+				printf("\n\n");
+				void *val = apply(expr, args, a);
+				printf("VALUE OF ");
+				print(carform);
+				printf("\n");
+				print(val);
+				printf("\n\n");
+				return val;
+			} else {
+				TAILCALL apply(expr, evlis(cdrform, a, expr), a);
+			}
+		}
 		void *fexpr = get(carform, atom_fexpr);
 		if (fexpr) {
 			gc_push(&form);
