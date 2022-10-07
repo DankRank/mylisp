@@ -335,11 +335,11 @@ void *subr_eq(void *args, void *a)
 }
 void *equal(void *x, void *y)
 {
-	if (ATOM(x)) {
-		return ATOM(y) && x == y ? atom_t : NULL;
+	if (!x || ATOM(x)) {
+		return (!y || ATOM(y)) && x == y ? atom_t : NULL;
 	} else if (NUMBER(x)) {
 		return NUMBER(y) && CDR(x) == CDR(y) ? atom_t : NULL;
-	} else if (ATOM(y) || NUMBER(y)) {
+	} else if (!y || ATOM(y) || NUMBER(y)) {
 		return NULL;
 	} else if (equal(CAR(x), CAR(y))) {
 		return equal(CDR(x), CDR(y));
